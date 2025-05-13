@@ -68,3 +68,37 @@ func TestReadfile_NoAccess(t *testing.T) {
 	assert.True(t, result.IsError)
 	assert.Contains(t, fmt.Sprint(result.Content[0]), "access denied - path outside allowed directories")
 }
+
+func TestSearchFiles_SameFilename(t *testing.T) {
+	dir := t.TempDir()
+
+	handler, err := NewFilesystemHandler([]string{dir})
+	require.NoError(t, err)
+
+	err = os.MkdirAll(filepath.Join(dir, "sub1", "sub2"), 0755)
+	assert.NoError(t, err)
+
+	file1 := filepath.Join(dir, "sub1", "test.h")
+	err = os.WriteFile(file1, []byte("foo"), 0644)
+	require.NoError(t, err)
+
+	file2 := filepath.Join(dir, "sub1", "test.h")
+	err = os.WriteFile(file2, []byte("foo"), 0644)
+	require.NoError(t, err)
+
+	request := mcp.CallToolRequest{}
+	request.Params.Name = "search_files"
+	request.Params.Arguments = map[string]any{
+		"path":    dir,
+		"pattern": "test.h",
+	}
+
+	result, err := handler.handleSearchFiles(context.Background(), request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Len(t, result.Content, 1)
+
+	assert.Contains(t, result.Content[0].(mcp.TextContent).Text, file1)
+	assert.Contains(t, result.Content[0].(mcp.TextContent).Text, file2)
+
+}
